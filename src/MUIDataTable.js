@@ -314,6 +314,7 @@ class MUIDataTable extends React.Component {
       },
       showResponsive: false,
       sortOrder: {},
+      scrollX: 0,
     };
 
     this.mergeDefaultOptions(props);
@@ -402,7 +403,7 @@ class MUIDataTable extends React.Component {
       transitionTime: 300,
     },
     elevation: 4,
-    enableNestedDataAccess: '',
+    enableNestedDataAccess: '.',
     expandableRows: false,
     expandableRowsHeader: true,
     expandableRowsOnClick: false,
@@ -1874,6 +1875,13 @@ class MUIDataTable extends React.Component {
     };
   }
 
+  onScroll(id) {
+    if (id) {
+      const _scrollX = document.getElementById(id).scrollLeft;
+      this.setState({ scrollX: _scrollX });
+    }
+  }
+
   render() {
     const {
       classes,
@@ -1907,6 +1915,7 @@ class MUIDataTable extends React.Component {
       sortOrder,
       serverSideFilterList,
       columnOrder,
+      scrollX,
     } = this.state;
 
     const TableBodyComponent = TableBody || DefaultTableBody;
@@ -2044,7 +2053,11 @@ class MUIDataTable extends React.Component {
           filterUpdate={this.filterUpdate}
           columnNames={columnNames}
         />
-        <div style={{ position: 'relative', ...tableHeightVal }} className={responsiveClass}>
+        <div
+          style={{ position: 'relative', ...tableHeightVal }}
+          className={responsiveClass}
+          onScroll={this.options.selectableRows === 'multiple' ? () => this.onScroll(tableProps.id) : undefined}
+          id={tableProps.id}>
           {(this.options.resizableColumns === true ||
             (this.options.resizableColumns && this.options.resizableColumns.enabled)) && (
             <TableResizeComponent
@@ -2063,7 +2076,8 @@ class MUIDataTable extends React.Component {
                 tabIndex={'0'}
                 role={'grid'}
                 className={tableClassNames}
-                {...tableProps}>
+                {...tableProps}
+                id={`${tableProps.id || ''}-table`}>
                 <caption className={classes.caption}>{title}</caption>
                 <TableHeadComponent
                   columns={columns}
@@ -2088,6 +2102,7 @@ class MUIDataTable extends React.Component {
                   tableId={this.options.tableId}
                   timers={this.timers}
                   components={this.props.components}
+                  scrollX={scrollX}
                 />
                 <TableBodyComponent
                   data={displayData}

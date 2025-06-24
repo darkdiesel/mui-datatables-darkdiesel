@@ -86,6 +86,7 @@ const handleHover = opts => {
     tableId,
     timers,
     columns,
+    scrollX,
   } = opts;
 
   let hoverIdx = mon.getItem().colIndex;
@@ -94,9 +95,11 @@ const handleHover = opts => {
 
   if (hoverIdx !== index) {
     let reorderedCols = reorderColumns(columnOrder, mon.getItem().colIndex, index);
+
     let newColModel = getColModel(headCellRefs, reorderedCols, columns);
 
-    let newX = mon.getClientOffset().x;
+    let newX = scrollX + mon.getClientOffset().x;
+
     let modelIdx = -1;
     for (let ii = 0; ii < newColModel.length; ii++) {
       if (newX > newColModel[ii].left && newX < newColModel[ii].left + newColModel[ii].width) {
@@ -169,7 +172,7 @@ const handleHover = opts => {
 const useColumnDrop = opts => {
   const [{ isOver, canDrop }, drop] = useDrop({
     accept: 'HEADER',
-    drop: drop,
+    drop: opts.drop,
     hover: (item, mon) => handleHover(Object.assign({}, opts, { item, mon })),
     collect: mon => ({
       isOver: !!mon.isOver(),
