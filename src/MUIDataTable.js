@@ -108,7 +108,7 @@ const STP = {
   REPLACE: 'replace',
   ABOVE: 'above',
   NONE: 'none',
-  ALWAYS: 'always'
+  ALWAYS: 'always',
 };
 
 class MUIDataTable extends React.Component {
@@ -117,6 +117,8 @@ class MUIDataTable extends React.Component {
     title: PropTypes.oneOfType([PropTypes.string, PropTypes.element]).isRequired,
     /** Data used to describe table */
     data: PropTypes.array.isRequired,
+    /** Column data separated into groups */
+    groupedColumns: PropTypes.array,
     /** Columns used to describe table */
     columns: PropTypes.PropTypes.arrayOf(
       PropTypes.oneOfType([
@@ -133,6 +135,7 @@ class MUIDataTable extends React.Component {
             searchable: PropTypes.bool,
             download: PropTypes.bool,
             viewColumns: PropTypes.bool,
+            viewColumnsSearch: PropTypes.bool,
             filterList: PropTypes.array,
             filterOptions: PropTypes.oneOfType([
               PropTypes.array,
@@ -228,7 +231,7 @@ class MUIDataTable extends React.Component {
       tableBodyMaxHeight: PropTypes.string,
       renderExpandableRow: PropTypes.func,
       resizableColumns: PropTypes.oneOfType([PropTypes.bool, PropTypes.object]),
-      responsive: PropTypes.oneOf(['standard', 'vertical', 'verticalAlways', 'simple']),
+      responsive: PropTypes.oneOf(['standard', 'vertical', 'verticalAlways', 'simple', 'stacked']),
       rowHover: PropTypes.bool,
       rowsExpanded: PropTypes.array,
       rowsPerPage: PropTypes.number,
@@ -261,6 +264,7 @@ class MUIDataTable extends React.Component {
     options: {},
     data: [],
     columns: [],
+    groupedColumns: [],
     components: {
       TableBody: DefaultTableBody,
       TableFilter: DefaultTableFilter,
@@ -298,6 +302,7 @@ class MUIDataTable extends React.Component {
       displayData: [],
       filterData: [],
       filterList: [],
+      groupedColumns: [],
       page: 0,
       previousSelectedRow: null,
       rowsPerPage: 10,
@@ -428,6 +433,7 @@ class MUIDataTable extends React.Component {
     sortOrder: {},
     textLabels: getTextLabels(),
     viewColumns: true,
+    viewColumnsSearch: false,
     selectToolbarPlacement: STP.REPLACE,
   });
 
@@ -446,12 +452,12 @@ class MUIDataTable extends React.Component {
       );
       this.options.selectableRows = this.options.selectableRows ? 'multiple' : 'none';
     }
-    if (['standard', 'vertical', 'verticalAlways', 'simple'].indexOf(this.options.responsive) === -1) {
+    if (['standard', 'vertical', 'verticalAlways', 'simple', 'stacked'].indexOf(this.options.responsive) === -1) {
       if (
         [
           'scrollMaxHeight',
           'scrollFullHeight',
-          'stacked',
+          // 'stacked', TODO: stacked was marked as deprecated but is still around in v4. Certain functionality relies on it.
           'stackedFullWidth',
           'scrollFullHeightFullWidth',
           'scroll',
@@ -673,7 +679,7 @@ class MUIDataTable extends React.Component {
       columnOrder = prevColumnOrder;
     }
 
-    return { columns: columnData, filterData, filterList, columnOrder };
+    return { columns: columnData, filterData, filterList, columnOrder, groupedColumns: this.props.groupedColumns };
   };
 
   transformData = (columns, data) => {
@@ -700,11 +706,12 @@ class MUIDataTable extends React.Component {
 
   setTableData(props, status, dataUpdated, callback = () => {}, fromConstructor = false) {
     let tableData = [];
-    let { columns, filterData, filterList, columnOrder } = this.buildColumns(
+    let { columns, filterData, filterList, columnOrder, groupedColumns } = this.buildColumns(
       props.columns,
       this.state.columns,
       this.options.columnOrder,
       this.state.columnOrder,
+      this.state.groupedColumns,
     );
 
     let sortIndex = null;
@@ -913,6 +920,7 @@ class MUIDataTable extends React.Component {
     /* set source data and display Data set source set */
     let stateUpdates = {
       columns: columns,
+      groupedColumns: groupedColumns,
       filterData: filterData,
       filterList: filterList,
       searchText: searchText,
@@ -1204,6 +1212,48 @@ class MUIDataTable extends React.Component {
     );
   };
 
+  selectAllColumns = () => {
+    this.setState(
+      prevState => {
+        const newColumns = prevState.columns.map(column =>
+          column.display === 'false' ? { ...column, display: 'true' } : column,
+        );
+        return {
+          columns: newColumns,
+        };
+      },
+      () => {
+        this.setTableAction('viewColumnsChange');
+        var cb = this.options.onViewColumnsChange || this.options.onColumnViewChange;
+
+        if (cb) {
+          this.state.columns.forEach(column => cb(column.name, column.display));
+        }
+      },
+    );
+  };
+
+  deselectAllColumns = () => {
+    this.setState(
+      prevState => {
+        const newColumns = prevState.columns.map(column =>
+          column.display === 'true' ? { ...column, display: 'false' } : column,
+        );
+        return {
+          columns: newColumns,
+        };
+      },
+      () => {
+        this.setTableAction('viewColumnsChange');
+        var cb = this.options.onViewColumnsChange || this.options.onColumnViewChange;
+
+        if (cb) {
+          this.state.columns.forEach(column => cb(column.name, column.display));
+        }
+      },
+    );
+  };
+
   getSortDirectionLabel(sortOrder) {
     switch (sortOrder.direction) {
       case 'asc':
@@ -1230,6 +1280,7 @@ class MUIDataTable extends React.Component {
     this.setState(
       prevState => {
         let columns = cloneDeep(prevState.columns);
+        let groupedColumns = cloneDeep(prevState.groupedColumns);
         let data = prevState.data;
         let newOrder = columns[index].sortDescFirst ? 'desc' : 'asc'; // default
 
@@ -1260,6 +1311,7 @@ class MUIDataTable extends React.Component {
 
         let newState = {
           columns: columns,
+          groupedColumns: groupedColumns,
           announceText: announceText,
           activeColumn: index,
         };
@@ -1844,6 +1896,7 @@ class MUIDataTable extends React.Component {
       data,
       displayData,
       columns,
+      groupedColumns,
       page,
       filterData,
       filterList,
@@ -1933,7 +1986,8 @@ class MUIDataTable extends React.Component {
 
     return (
       <Paper elevation={this.options.elevation} ref={this.tableContent} className={paperClasses}>
-        {(this.options.selectToolbarPlacement === STP.ALWAYS || selectedRows.data.length > 0 && this.options.selectToolbarPlacement !== STP.NONE) && (
+        {(this.options.selectToolbarPlacement === STP.ALWAYS ||
+          (selectedRows.data.length > 0 && this.options.selectToolbarPlacement !== STP.NONE)) && (
           <TableToolbarSelectComponent
             options={this.options}
             selectedRows={selectedRows}
@@ -1948,6 +2002,7 @@ class MUIDataTable extends React.Component {
           showToolbar && (
             <TableToolbarComponent
               columns={columns}
+              groupedColumns={groupedColumns}
               columnOrder={columnOrder}
               displayData={displayData}
               data={data}
@@ -1963,6 +2018,8 @@ class MUIDataTable extends React.Component {
               tableRef={this.getTableContentRef}
               title={title}
               toggleViewColumn={this.toggleViewColumn}
+              selectAllColumns={this.selectAllColumns}
+              deselectAllColumns={this.deselectAllColumns}
               updateColumns={this.updateColumns}
               setTableAction={this.setTableAction}
               components={this.props.components}
